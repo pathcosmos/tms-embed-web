@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { Car, User, Phone, ArrowRightLeft, Eye, EyeOff, Check, Sun, RotateCcw, Download } from 'lucide-react';
 import QRCode from 'qrcode';
+import html2canvas from 'html2canvas';
 import { vehicleValidator } from './utils/vehicleValidator';
 
 // 타입 정의
@@ -137,6 +138,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPrivacyContent, setShowPrivacyContent] = useState(false);
   const [showBrightnessAlert, setShowBrightnessAlert] = useState(true);
+  const qrCodeRef = useRef<HTMLDivElement>(null);
 
   const { register, handleSubmit, formState: { errors } } = useForm<VehicleFormData>();
 
@@ -225,14 +227,36 @@ function App() {
     setQrCodeImage('');
   };
 
-  const handleDownload = () => {
-    if (!qrCodeImage) return;
-    const link = document.createElement('a');
-    link.href = qrCodeImage;
-    link.download = `qr_code_${qrCodeData?.vehicleNumber}_${Date.now()}.png`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleDownload = async () => {
+    if (!qrCodeRef.current || !qrCodeData) return;
+    
+    try {
+      // 화면 전체를 캡처
+      const canvas = await html2canvas(qrCodeRef.current, {
+        background: '#ffffff',
+        useCORS: true,
+        allowTaint: true,
+      });
+      
+      // 캔버스를 이미지로 변환
+      const imgData = canvas.toDataURL('image/png', 1.0);
+      
+      // 다운로드 링크 생성
+      const link = document.createElement('a');
+      link.href = imgData;
+      link.download = `차량입출차_${qrCodeData.vehicleNumber}_${qrCodeData.entryExitType === 'entry' ? '입차' : '출차'}_${new Date().toISOString().split('T')[0]}.png`;
+      
+      // 다운로드 실행
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // 성공 메시지
+      alert('화면이 성공적으로 저장되었습니다!');
+    } catch (error) {
+      console.error('스크린샷 저장 실패:', error);
+      alert('스크린샷 저장에 실패했습니다. 다시 시도해주세요.');
+    }
   };
 
 
@@ -478,7 +502,7 @@ function App() {
     };
 
     return (
-      <div className="p-6 space-y-6">
+      <div ref={qrCodeRef} className="p-6 space-y-6">
         {/* 헤더 */}
         <div className="text-center">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">QR 코드</h1>
@@ -547,7 +571,7 @@ function App() {
             className="btn-secondary flex items-center justify-center space-x-2"
           >
             <Download className="w-4 h-4" />
-            <span>QR 코드 저장</span>
+            <span>화면 스크린샷 저장</span>
           </button>
           
           <button
