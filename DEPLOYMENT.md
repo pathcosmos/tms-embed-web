@@ -1,10 +1,16 @@
-# TMS Embed Web 배포 가이드
+# TMS Embed Web 배포 가이드 (/embed/ 경로)
 
-## 1. 빌드 완료 확인
+## 1. 빌드 준비
 
-프로덕션 빌드가 완료되었습니다:
+### 1.1 프로젝트 빌드
+```bash
+# 프로젝트 빌드 (/embed/ 경로에 맞게 설정됨)
+npm run build
+```
+
+빌드된 파일들:
 - 빌드 파일 위치: `./dist/`
-- 빌드 크기: 258.96 kB (gzip: 84.87 kB)
+- 접근 경로: `https://your-domain.com/embed/`
 
 ## 2. 서버 준비
 
@@ -35,12 +41,23 @@ sudo cp nginx.conf /etc/nginx/sites-available/tms-embed-web
 sudo ln -s /etc/nginx/sites-available/tms-embed-web /etc/nginx/sites-enabled/
 ```
 
-### 3.3 기본 설정 비활성화
+### 3.3 중요: /embed/ 경로 설정 확인
+nginx.conf 파일에서 `/embed/` location 블록이 올바르게 설정되었는지 확인하세요:
+```nginx
+location /embed/ {
+    alias /var/www/tms-embed-web/dist/;
+    index index.html;
+    try_files $uri $uri/ /embed/index.html;
+    # ... 기타 설정
+}
+```
+
+### 3.4 기본 설정 비활성화
 ```bash
 sudo rm /etc/nginx/sites-enabled/default
 ```
 
-### 3.4 Nginx 설정 테스트 및 재시작
+### 3.5 Nginx 설정 테스트 및 재시작
 ```bash
 sudo nginx -t
 sudo systemctl restart nginx
@@ -77,7 +94,11 @@ sudo systemctl status nginx
 
 ### 6.2 웹사이트 접속 테스트
 ```bash
-curl -I http://your-domain.com
+# /embed/ 경로로 접속 테스트
+curl -I http://your-domain.com/embed/
+
+# 또는 브라우저에서 직접 접속
+# http://your-domain.com/embed/
 ```
 
 ## 7. 로그 모니터링
@@ -143,5 +164,11 @@ sudo journalctl -u nginx
 ```
 
 ### 404 에러가 발생하는 경우
-- `try_files $uri $uri/ /index.html;` 설정이 올바른지 확인
-- React Router를 사용하므로 모든 경로가 `index.html`로 리다이렉트되어야 함
+- `try_files $uri $uri/ /embed/index.html;` 설정이 올바른지 확인
+- React Router를 사용하므로 모든 경로가 `/embed/index.html`로 리다이렉트되어야 함
+- `/embed/` 경로로 접속하고 있는지 확인
+
+### /embed/ 경로 접속이 안 되는 경우
+- nginx 설정에서 `location /embed/` 블록이 올바른지 확인
+- `alias /var/www/tms-embed-web/dist/;` 경로가 실제 파일 위치와 일치하는지 확인
+- nginx 에러 로그 확인: `sudo tail -f /var/log/nginx/error.log`

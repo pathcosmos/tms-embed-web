@@ -1,8 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import { Car, User, Phone, ArrowRightLeft, Eye, EyeOff, Check, Sun, RotateCcw, Download } from 'lucide-react';
+import { Car, User, Phone, ArrowRightLeft, Eye, EyeOff, Check, Sun, RotateCcw } from 'lucide-react';
 import QRCode from 'qrcode';
-import html2canvas from 'html2canvas';
 import { vehicleValidator } from './utils/vehicleValidator';
 
 // 타입 정의
@@ -12,6 +11,7 @@ interface VehicleFormData {
   driverPhone: string;
   entryExitType: 'entry' | 'exit';
   privacyConsent: boolean;
+  appOnly: boolean;
 }
 
 interface QRCodeData {
@@ -138,6 +138,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPrivacyContent, setShowPrivacyContent] = useState(false);
   const [showBrightnessAlert, setShowBrightnessAlert] = useState(true);
+  const [countdown, setCountdown] = useState(120); // 120초 카운트다운
   const qrCodeRef = useRef<HTMLDivElement>(null);
 
   const { register, handleSubmit, formState: { errors } } = useForm<VehicleFormData>();
@@ -155,7 +156,8 @@ function App() {
       driverName: data.driverName,
       driverPhone: data.driverPhone,
       entryExitType: selectedType as 'entry' | 'exit',
-      privacyConsent: data.privacyConsent
+      privacyConsent: data.privacyConsent,
+      appOnly: data.appOnly
     };
     setFormData(formattedData);
     setCurrentState('privacy');
@@ -181,10 +183,12 @@ function App() {
       // QR 코드용 JSON 데이터 생성
       const qrJsonData = {
         carNo: formData.vehicleNumber,
-        type: 'userInput',
+        type: formData.appOnly ? 'app' : 'userInput',
         userNm: formData.driverName,
         phoneNo: cleanPhoneNumber,
-        gubun: formData.entryExitType === 'entry' ? 'in' : 'out'
+        gubun: formData.entryExitType === 'entry' ? 'in' : 'out',
+        carNoEnc: encodeURIComponent(formData.vehicleNumber),
+        userNmEnc: encodeURIComponent(formData.driverName)
       };
 
       // 기존 QRCodeData (화면 표시용) - 하이폰 유지
@@ -225,47 +229,30 @@ function App() {
     setPrivacyConsent(false);
     setQrCodeData(null);
     setQrCodeImage('');
+    setCountdown(120); // 카운트다운 초기화
   };
 
-  const handleDownload = async () => {
-    if (!qrCodeRef.current || !qrCodeData) return;
-    
-    try {
-      // 화면 전체를 캡처
-      const canvas = await html2canvas(qrCodeRef.current, {
-        background: '#ffffff',
-        useCORS: true,
-        allowTaint: true,
-      });
-      
-      // 캔버스를 이미지로 변환
-      const imgData = canvas.toDataURL('image/png', 1.0);
-      
-      // 다운로드 링크 생성
-      const link = document.createElement('a');
-      link.href = imgData;
-      link.download = `차량입출차_${qrCodeData.vehicleNumber}_${qrCodeData.entryExitType === 'entry' ? '입차' : '출차'}_${new Date().toISOString().split('T')[0]}.png`;
-      
-      // 다운로드 실행
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      
-      // 성공 메시지
-      alert('화면이 성공적으로 저장되었습니다!');
-    } catch (error) {
-      console.error('스크린샷 저장 실패:', error);
-      alert('스크린샷 저장에 실패했습니다. 다시 시도해주세요.');
-    }
-  };
+  // 페이지 로드 시 초기화면으로 설정
+  useEffect(() => {
+    setCurrentState('form');
+    setFormData(null);
+    setPrivacyConsent(false);
+    setQrCodeData(null);
+    setQrCodeImage('');
+    setCountdown(120);
+  }, []); // 컴포넌트 마운트 시에만 실행
+
 
 
   // 폼 컴포넌트
   const VehicleFormComponent = () => {
     const [selectedType, setSelectedType] = useState<'entry' | 'exit' | ''>('');
+    const [appOnly, setAppOnly] = useState(false);
     
     const onSubmit = (data: VehicleFormData) => {
-      handleFormSubmit(data, selectedType);
+      // appOnly 상태를 폼 데이터에 추가
+      const dataWithAppOnly = { ...data, appOnly };
+      handleFormSubmit(dataWithAppOnly, selectedType);
     };
 
     return (
@@ -411,6 +398,22 @@ function App() {
         )}
       </div>
 
+      {/* 앱 전용 QR 생성 체크박스 */}
+      <div className="space-y-2">
+        <label className="flex items-center space-x-3 p-4 border-2 rounded-lg cursor-pointer transition-colors hover:bg-gray-50">
+          <input
+            type="checkbox"
+            checked={appOnly}
+            onChange={(e) => setAppOnly(e.target.checked)}
+            className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+          />
+          <div className="flex-1">
+            <div className="font-medium text-gray-900">앱 전용 QR 생성</div>
+            <div className="text-sm text-gray-500">체크 시 앱에서만 인식 가능한 QR 코드를 생성합니다</div>
+          </div>
+        </label>
+      </div>
+
       {/* 제출 버튼 */}
       <button
         type="submit"
@@ -491,6 +494,24 @@ function App() {
       return () => clearTimeout(timer);
     }, []);
 
+    // 120초 카운트다운 타이머
+    React.useEffect(() => {
+      if (currentState === 'qr' && countdown > 0) {
+        const timer = setInterval(() => {
+          setCountdown((prev) => {
+            if (prev <= 1) {
+              // 카운트다운이 끝나면 초기화면으로 복귀
+              handleBackToForm();
+              return 120;
+            }
+            return prev - 1;
+          });
+        }, 1000);
+
+        return () => clearInterval(timer);
+      }
+    }, [currentState, countdown]);
+
     const formatTimestamp = (timestamp: string) => {
       return new Date(timestamp).toLocaleString('ko-KR', {
         year: 'numeric',
@@ -501,6 +522,12 @@ function App() {
       });
     };
 
+    const formatCountdown = (seconds: number) => {
+      const minutes = Math.floor(seconds / 60);
+      const remainingSeconds = seconds % 60;
+      return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+    };
+
     return (
       <div ref={qrCodeRef} className="p-6 space-y-6">
         {/* 헤더 */}
@@ -509,7 +536,7 @@ function App() {
           <p className="text-lg text-gray-600">QR 코드를 스캔하여 입출차를 처리하세요</p>
         </div>
 
-        {/* QR 코드 - 맨 위로 이동 */}
+        {/* QR 코드 */}
         <div className="flex flex-col items-center space-y-4">
           <div className="bg-white p-6 rounded-lg shadow-lg">
             <img
@@ -522,6 +549,13 @@ function App() {
           <div className="text-center text-base text-gray-600">
             <p>QR 코드를 스캔하여 입출차를 처리하세요</p>
           </div>
+        </div>
+
+        {/* 카운트다운 표시 - QR 코드 아래로 이동 */}
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+          <p className="text-red-800 font-medium text-lg text-center">
+            자동 복귀까지 남은 시간: <span className="font-bold text-xl">{formatCountdown(countdown)}</span>
+          </p>
         </div>
 
         {/* 밝기 조절 안내 */}
@@ -566,14 +600,6 @@ function App() {
 
         {/* 액션 버튼들 */}
         <div className="space-y-3">
-          <button
-            onClick={handleDownload}
-            className="btn-secondary flex items-center justify-center space-x-2"
-          >
-            <Download className="w-4 h-4" />
-            <span>화면 스크린샷 저장</span>
-          </button>
-          
           <button
             onClick={handleBackToForm}
             className="btn-primary flex items-center justify-center space-x-2"
