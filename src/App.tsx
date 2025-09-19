@@ -202,7 +202,12 @@ function App() {
       };
 
       // JSON 형태로 QR 코드 생성
-      const qrImage = await QRCode.toDataURL(JSON.stringify(qrJsonData), {
+      const qrJsonString = JSON.stringify(qrJsonData);
+      console.log('QR 코드에 들어갈 JSON 데이터:', qrJsonString);
+      console.log('carNoEnc 확인:', qrJsonData.carNoEnc);
+      console.log('userNmEnc 확인:', qrJsonData.userNmEnc);
+      
+      const qrImage = await QRCode.toDataURL(qrJsonString, {
         width: 150,
         margin: 2,
         color: {
@@ -592,11 +597,27 @@ function App() {
             </div>
           </div>
           
-          
           <div className="text-base text-gray-500">
             생성시간: {qrCodeData && formatTimestamp(qrCodeData.timestamp)}
           </div>
         </div>
+
+        {/* QR 코드 실제 데이터 확인 */}
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <h3 className="text-lg font-medium text-yellow-800 mb-2">QR 코드 실제 데이터</h3>
+          <div className="text-xs text-yellow-700 bg-white p-2 rounded border font-mono break-all">
+            {formData && JSON.stringify({
+              carNo: formData.vehicleNumber,
+              type: formData.appOnly ? 'app' : 'userInput',
+              userNm: formData.driverName,
+              phoneNo: formData.driverPhone.replace(/-/g, ''),
+              gubun: formData.entryExitType === 'entry' ? 'in' : 'out',
+              carNoEnc: encodeURIComponent(formData.vehicleNumber),
+              userNmEnc: encodeURIComponent(formData.driverName)
+            }, null, 2)}
+          </div>
+        </div>
+
 
         {/* 액션 버튼들 */}
         <div className="space-y-3">
