@@ -139,9 +139,12 @@ function App() {
   const [showPrivacyContent, setShowPrivacyContent] = useState(false);
   const [showBrightnessAlert, setShowBrightnessAlert] = useState(true);
   const [countdown, setCountdown] = useState(120); // 120초 카운트다운
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [confirmData, setConfirmData] = useState<VehicleFormData | null>(null);
+  const [confirmType, setConfirmType] = useState<string>('');
   const qrCodeRef = useRef<HTMLDivElement>(null);
 
-  const { register, handleSubmit, formState: { errors } } = useForm<VehicleFormData>();
+  const { register, handleSubmit, formState: { errors }, setValue } = useForm<VehicleFormData>();
 
   const handleFormSubmit = (data: VehicleFormData, selectedType: string) => {
     // 입차/출차 선택 검증
@@ -159,8 +162,25 @@ function App() {
       privacyConsent: data.privacyConsent,
       appOnly: data.appOnly
     };
-    setFormData(formattedData);
+    
+    // 확인 모달 표시
+    setConfirmData(formattedData);
+    setConfirmType(selectedType);
+    setShowConfirmModal(true);
+  };
+
+  const handleConfirmSubmit = () => {
+    if (!confirmData) return;
+    
+    setFormData(confirmData);
     setCurrentState('privacy');
+    setShowConfirmModal(false);
+  };
+
+  const handleCancelSubmit = () => {
+    setShowConfirmModal(false);
+    setConfirmData(null);
+    setConfirmType('');
   };
 
   const handlePrivacyConsent = (consented: boolean) => {
@@ -253,8 +273,45 @@ function App() {
   const VehicleFormComponent = () => {
     const [selectedType, setSelectedType] = useState<'entry' | 'exit' | ''>('');
     const [appOnly, setAppOnly] = useState(false);
+    const [saveInfo, setSaveInfo] = useState(false);
+    
+    // 저장된 정보 불러오기
+    React.useEffect(() => {
+      const savedData = localStorage.getItem('tms-saved-info');
+      if (savedData) {
+        try {
+          const parsed = JSON.parse(savedData);
+          // 만료 시간 확인 (7일)
+          if (parsed.timestamp && Date.now() - parsed.timestamp > 7 * 24 * 60 * 60 * 1000) {
+            localStorage.removeItem('tms-saved-info');
+            return;
+          }
+          if (parsed.vehicleNumber) setValue('vehicleNumber', parsed.vehicleNumber);
+          if (parsed.driverName) setValue('driverName', parsed.driverName);
+          if (parsed.driverPhone) setValue('driverPhone', parsed.driverPhone);
+          setSaveInfo(true);
+        } catch (error) {
+          console.error('저장된 정보 불러오기 실패:', error);
+          localStorage.removeItem('tms-saved-info');
+        }
+      }
+    }, []);
     
     const onSubmit = (data: VehicleFormData) => {
+      // 정보 저장 옵션이 체크되어 있으면 로컬 스토리지에 저장
+      if (saveInfo) {
+        const infoToSave = {
+          vehicleNumber: data.vehicleNumber,
+          driverName: data.driverName,
+          driverPhone: data.driverPhone,
+          timestamp: Date.now() // 저장 시간 추가
+        };
+        localStorage.setItem('tms-saved-info', JSON.stringify(infoToSave));
+      } else {
+        // 체크 해제 시 저장된 정보 삭제
+        localStorage.removeItem('tms-saved-info');
+      }
+      
       // appOnly 상태를 폼 데이터에 추가
       const dataWithAppOnly = { ...data, appOnly };
       handleFormSubmit(dataWithAppOnly, selectedType);
@@ -401,6 +458,22 @@ function App() {
         {errors.entryExitType && (
           <p className="text-red-500 text-base">{errors.entryExitType.message}</p>
         )}
+      </div>
+
+      {/* 정보 저장 옵션 체크박스 */}
+      <div className="space-y-2">
+        <label className="flex items-center space-x-3 p-4 border-2 rounded-lg cursor-pointer transition-colors hover:bg-gray-50">
+          <input
+            type="checkbox"
+            checked={saveInfo}
+            onChange={(e) => setSaveInfo(e.target.checked)}
+            className="w-5 h-5 text-green-600 border-gray-300 rounded focus:ring-green-500"
+          />
+          <div className="flex-1">
+            <div className="font-medium text-gray-900">정보 저장</div>
+            <div className="text-sm text-gray-500">차량번호, 기사 이름, 기사 전화번호를 저장하여 다음에 자동 입력됩니다</div>
+          </div>
+        </label>
       </div>
 
       {/* 앱 전용 QR 생성 체크박스 */}
@@ -633,11 +706,85 @@ function App() {
     );
   };
 
+  // 확인 모달 컴포넌트
+  const ConfirmModal = () => {
+    if (!showConfirmModal || !confirmData) return null;
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
+          <div className="p-6">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">입력 정보 확인</h2>
+            
+            {/* 입차/출차 구분 강조 표시 */}
+            <div className={`rounded-lg p-4 mb-6 text-center ${
+              confirmType === 'entry' 
+                ? 'bg-blue-100 border-2 border-blue-500' 
+                : 'bg-red-100 border-2 border-red-500'
+            }`}>
+              <div className="text-4xl mb-2">
+                {confirmType === 'entry' ? '🚗' : '🚙'}
+              </div>
+              <div className={`text-2xl font-bold ${
+                confirmType === 'entry' ? 'text-blue-800' : 'text-red-800'
+              }`}>
+                {confirmType === 'entry' ? '입차' : '출차'}
+              </div>
+            </div>
+
+            {/* 입력 정보 표시 */}
+            <div className="space-y-4 mb-6">
+              <div className="flex justify-between items-center py-2 border-b border-gray-200">
+                <span className="text-gray-600 font-medium">차량번호:</span>
+                <span className="font-semibold text-gray-900">{confirmData.vehicleNumber}</span>
+              </div>
+              <div className="flex justify-between items-center py-2 border-b border-gray-200">
+                <span className="text-gray-600 font-medium">기사 이름:</span>
+                <span className="font-semibold text-gray-900">{confirmData.driverName}</span>
+              </div>
+              <div className="flex justify-between items-center py-2 border-b border-gray-200">
+                <span className="text-gray-600 font-medium">전화번호:</span>
+                <span className="font-semibold text-gray-900">{confirmData.driverPhone}</span>
+              </div>
+              <div className="flex justify-between items-center py-2 border-b border-gray-200">
+                <span className="text-gray-600 font-medium">QR 타입:</span>
+                <span className="font-semibold text-gray-900">
+                  {confirmData.appOnly ? '앱 전용' : '일반'}
+                </span>
+              </div>
+            </div>
+
+            {/* 버튼들 */}
+            <div className="flex space-x-3">
+              <button
+                onClick={handleCancelSubmit}
+                className="flex-1 bg-gray-200 text-gray-800 py-3 px-4 rounded-lg font-medium hover:bg-gray-300 transition-colors"
+              >
+                수정하기
+              </button>
+              <button
+                onClick={handleConfirmSubmit}
+                className={`flex-1 py-3 px-4 rounded-lg font-medium text-white transition-colors ${
+                  confirmType === 'entry' 
+                    ? 'bg-blue-600 hover:bg-blue-700' 
+                    : 'bg-red-600 hover:bg-red-700'
+                }`}
+              >
+                확인
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="mobile-container">
       {currentState === 'form' && <VehicleFormComponent />}
       {currentState === 'privacy' && <PrivacyConsentComponent />}
       {currentState === 'qr' && qrCodeData && <QRCodeDisplayComponent />}
+      <ConfirmModal />
     </div>
   );
 }
