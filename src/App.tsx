@@ -203,7 +203,7 @@ function App() {
       // QR 코드용 JSON 데이터 생성
       const qrJsonData = {
         carNo: formData.vehicleNumber,
-        type: formData.appOnly ? 'app' : 'userInput',
+        type: 'userInput',
         userNm: formData.driverName,
         phoneNo: cleanPhoneNumber,
         gubun: formData.entryExitType === 'entry' ? 'in' : 'out',
@@ -272,7 +272,6 @@ function App() {
   // 폼 컴포넌트
   const VehicleFormComponent = () => {
     const [selectedType, setSelectedType] = useState<'entry' | 'exit' | ''>('');
-    const [appOnly, setAppOnly] = useState(false);
     const [saveInfo, setSaveInfo] = useState(false);
     
     // 저장된 정보 불러오기
@@ -312,8 +311,8 @@ function App() {
         localStorage.removeItem('tms-saved-info');
       }
       
-      // appOnly 상태를 폼 데이터에 추가
-      const dataWithAppOnly = { ...data, appOnly };
+      // appOnly 상태를 폼 데이터에 추가 (항상 false로 설정)
+      const dataWithAppOnly = { ...data, appOnly: false };
       handleFormSubmit(dataWithAppOnly, selectedType);
     };
 
@@ -476,21 +475,6 @@ function App() {
         </label>
       </div>
 
-      {/* 앱 전용 QR 생성 체크박스 */}
-      <div className="space-y-2">
-        <label className="flex items-center space-x-3 p-4 border-2 rounded-lg cursor-pointer transition-colors hover:bg-gray-50">
-          <input
-            type="checkbox"
-            checked={appOnly}
-            onChange={(e) => setAppOnly(e.target.checked)}
-            className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-          />
-          <div className="flex-1">
-            <div className="font-medium text-gray-900">앱 전용 QR 생성</div>
-            <div className="text-sm text-gray-500">체크 시 앱에서만 인식 가능한 QR 코드를 생성합니다</div>
-          </div>
-        </label>
-      </div>
 
       {/* 제출 버튼 */}
       <button
@@ -681,7 +665,7 @@ function App() {
           <div className="text-xs text-yellow-700 bg-white p-2 rounded border font-mono break-all">
             {formData && JSON.stringify({
               carNo: formData.vehicleNumber,
-              type: formData.appOnly ? 'app' : 'userInput',
+              type: 'userInput',
               userNm: formData.driverName,
               phoneNo: formData.driverPhone.replace(/-/g, ''),
               gubun: formData.entryExitType === 'entry' ? 'in' : 'out',
@@ -745,12 +729,6 @@ function App() {
               <div className="flex justify-between items-center py-2 border-b border-gray-200">
                 <span className="text-gray-600 font-medium">전화번호:</span>
                 <span className="font-semibold text-gray-900">{confirmData.driverPhone}</span>
-              </div>
-              <div className="flex justify-between items-center py-2 border-b border-gray-200">
-                <span className="text-gray-600 font-medium">QR 타입:</span>
-                <span className="font-semibold text-gray-900">
-                  {confirmData.appOnly ? '앱 전용' : '일반'}
-                </span>
               </div>
             </div>
 
